@@ -17,7 +17,7 @@ defc CONFIG_BLOCKS  = (CONFIG_SIZE + (BLOCK_SIZE-1)) / BLOCK_SIZE
 defc BAR_DISPLAY    = 0xC000 + 127 * 64 + 16
 defc BAR_PIXELSIZE  = 96
 ;defc BAR_SPEEDFACTOR = BAR_PIXELSIZE * 256 / CONFIG_BLOCKS
-defc BAR_SPEEDFACTOR = 0x0114
+defc BAR_SPEEDFACTOR = 0x00E7 ;0x0114
 
 defc prog_offset    = 0x0010
 ;----------------------------------------------------------------------------
@@ -46,9 +46,8 @@ ASSERT begin - PROG_START = prog_offset
 loop1:
     ld      bc, BANNER_BPR
     call    read_rmm
-    ; HL to next display line
-    ; skip remaining 4 visible + 16 not visible + 4 on next line
-    ld      bc, 24
+    ; HL to next display line, skip to next row
+    ld      bc, 64 - BANNER_BPR
     add     hl, bc
     ld      bc, rowcount
     ld      a, (bc)
@@ -123,15 +122,16 @@ update_pb:
     ret     z
     ld      hl, (pbaddress)
 upb1:
-    ld      a, (hl)
+    ; add one pixel to progress bar
+    ld      a, (hl)         ; byte from video ram
+    and     0x3F            ; only pixel data
     scf
-    rla
-    or      0x40
-    and     0x7F
-    ld      (hl), a
-    cp      0x7F
-    jp      nz, upb2
-    inc     hl
+    rla                     ; add one pixel
+    or      0x40            ; apply color
+    ld      (hl), a         ; update
+    cp      0x3F + 0x40     ; is current video byte filled up (pixels + color)?
+    jp      nz, upb2        ; -> no
+    inc     hl              ; yes, prepare for next byte
 upb2:
     ld      a, (pbcount+1)
     dec     a
@@ -177,7 +177,7 @@ BANNER:
     align 256
 
 CONFIG_START:
-    incbin "../../fujinet-config/build/config.bin"
+    incbin "../../fujinet-config/r2r/pmd85/config.bin"
 CONFIG_END:
 
 ;----------------------------------------------------------------------------
